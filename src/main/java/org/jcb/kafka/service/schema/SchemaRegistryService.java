@@ -5,6 +5,7 @@
 
 package org.jcb.kafka.service.schema;
 
+import io.confluent.kafka.schemaregistry.avro.AvroSchema;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
 import org.apache.avro.Schema;
@@ -34,7 +35,7 @@ public class SchemaRegistryService {
         try (var inputStream = new FileInputStream(schemaFilePath)) {
             schemaContents = IOUtils.toString(inputStream, Charset.defaultCharset());
         }
-        client.register(subject, new Schema.Parser().parse(schemaContents));
+        client.register(subject, new AvroSchema(schemaContents));
     }
 
     public void unregisterSchema(String subject) throws IOException, RestClientException {

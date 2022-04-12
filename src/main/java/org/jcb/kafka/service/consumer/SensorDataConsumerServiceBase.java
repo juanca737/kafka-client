@@ -6,7 +6,6 @@
 package org.jcb.kafka.service.consumer;
 
 import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.jcb.kafka.controller.SensorDataClient;
@@ -17,16 +16,19 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
 
 public abstract class SensorDataConsumerServiceBase implements SensorDataConsumer {
+
+    private static final int MAX_EMPTY_TRIES = 100;
 
     @Autowired
     private ConsumerPropertiesFactory consumerPropertiesFactory;
 
     protected Consumer<Integer, SensorData> consumer;
-
-    private boolean subscribed;
 
     @PostConstruct
     void init() {
@@ -44,24 +46,30 @@ public abstract class SensorDataConsumerServiceBase implements SensorDataConsume
 
     @Override
     public List<SensorDataClient> consume(String topic) {
-        if (!subscribed) {
-            consumer.subscribe(Collections.singleton(topic));
-            subscribed = true;
-        }
-        ConsumerRecords<Integer, SensorData> messages
-                = consumer.poll(Duration.of(1000, ChronoUnit.MILLIS));
-
         List<SensorDataClient> result = new ArrayList<>();
-        for (ConsumerRecord<Integer, SensorData> consumerRecord : messages.records(topic)) {
-            SensorDataClient sensorData = new SensorDataClient();
-            sensorData.setBuildingId(consumerRecord.key());
-            sensorData.setSensorId(consumerRecord.value().getSensorId());
-            sensorData.setTemperature(consumerRecord.value().getTemperature());
-            sensorData.setStatus(consumerRecord.value().getStatus().toString());
-            sensorData.setLastUpdate(consumerRecord.value().getLastUpdate());
-            sensorData.setTopic(consumerRecord.topic());
-            sensorData.setPartition(consumerRecord.partition());
-            result.add(sensorData);
+        int emptyResultCount = 0;
+
+        consumer.subscribe(Collections.singleton(topic));
+
+        while (true) {
+            ConsumerRecords<Integer, SensorData> messages
+                    = consumer.poll(Duration.of(1000, ChronoUnit.MILLIS));
+
+            if (messages.isEmpty() && emptyResultCount++ > MAX_EMPTY_TRIES) {
+                break;
+            }
+
+            messages.records((topic)).forEach(consumerRecord -> {
+                SensorDataClient sensorData = new SensorDataClient();
+                sensorData.setBuildingId(consumerRecord.key());
+                sensorData.setSensorId(consumerRecord.value().getSensorId());
+                sensorData.setTemperature(consumerRecord.value().getTemperature());
+                sensorData.setStatus(consumerRecord.value().getStatus().toString());
+                sensorData.setLastUpdate(consumerRecord.value().getLastUpdate());
+                sensorData.setTopic(consumerRecord.topic());
+                sensorData.setPartition(consumerRecord.partition());
+                result.add(sensorData);
+            });
         }
         return result;
     }
