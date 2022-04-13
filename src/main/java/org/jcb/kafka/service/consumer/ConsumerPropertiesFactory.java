@@ -18,8 +18,11 @@ import java.util.Properties;
 @Component
 public class ConsumerPropertiesFactory {
 
-    @Autowired
-    private AppConfiguration configuration;
+    private final AppConfiguration configuration;
+
+    public ConsumerPropertiesFactory(@Autowired AppConfiguration configuration) {
+        this.configuration = configuration;
+    }
 
     public Properties create() {
         Properties properties = new Properties();

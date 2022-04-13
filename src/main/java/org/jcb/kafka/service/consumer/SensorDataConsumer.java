@@ -5,12 +5,14 @@
 
 package org.jcb.kafka.service.consumer;
 
-import org.jcb.kafka.controller.SensorDataClient;
+import org.jcb.kafka.controller.ClientSensorData;
 
 import java.util.List;
 
 public interface SensorDataConsumer {
 
-    List<SensorDataClient> consume(String topic);
+    void consume(String topic, MessageConsumerCallback<ClientSensorData> callback);
+
+    List<ClientSensorData> consume(String topic);
 
 }

@@ -8,11 +8,11 @@ package org.jcb.kafka.service.consumer;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.jcb.kafka.controller.SensorDataClient;
+import org.jcb.kafka.controller.ClientSensorData;
 import org.jcb.kafka.schema.SensorData;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -23,15 +23,14 @@ import java.util.Properties;
 
 public abstract class SensorDataConsumerServiceBase implements SensorDataConsumer {
 
-    private static final int MAX_EMPTY_TRIES = 100;
+    public static final Logger LOGGER = LoggerFactory.getLogger(SensorDataConsumerServiceBase.class);
 
-    @Autowired
-    private ConsumerPropertiesFactory consumerPropertiesFactory;
+    private static final int MAX_EMPTY_TRIES = 3;
 
     protected Consumer<Integer, SensorData> consumer;
+    private boolean subscribed;
 
-    @PostConstruct
-    void init() {
+    protected SensorDataConsumerServiceBase(ConsumerPropertiesFactory consumerPropertiesFactory) {
         Properties properties = consumerPropertiesFactory.create();
         setExtraProperties(properties);
         consumer = new KafkaConsumer<>(properties);
@@ -44,34 +43,55 @@ public abstract class SensorDataConsumerServiceBase implements SensorDataConsume
         consumer.close();
     }
 
-    @Override
-    public List<SensorDataClient> consume(String topic) {
-        List<SensorDataClient> result = new ArrayList<>();
+    public void consume(String topic, MessageConsumerCallback<ClientSensorData> callback) {
+        if (!subscribed) {
+            consumer.subscribe(Collections.singleton(topic));
+            subscribed = true;
+        }
+
         int emptyResultCount = 0;
-
-        consumer.subscribe(Collections.singleton(topic));
-
-        while (true) {
+        while (emptyResultCount <= MAX_EMPTY_TRIES) {
             ConsumerRecords<Integer, SensorData> messages
                     = consumer.poll(Duration.of(1000, ChronoUnit.MILLIS));
 
-            if (messages.isEmpty() && emptyResultCount++ > MAX_EMPTY_TRIES) {
-                break;
+            if (messages.isEmpty()) {
+                emptyResultCount++;
+            } else {
+                emptyResultCount = 0;
             }
 
-            messages.records((topic)).forEach(consumerRecord -> {
-                SensorDataClient sensorData = new SensorDataClient();
-                sensorData.setBuildingId(consumerRecord.key());
-                sensorData.setSensorId(consumerRecord.value().getSensorId());
-                sensorData.setTemperature(consumerRecord.value().getTemperature());
-                sensorData.setStatus(consumerRecord.value().getStatus().toString());
-                sensorData.setLastUpdate(consumerRecord.value().getLastUpdate());
-                sensorData.setTopic(consumerRecord.topic());
-                sensorData.setPartition(consumerRecord.partition());
-                result.add(sensorData);
-            });
+            processRecords(messages, callback);
         }
+    }
+
+    @Override
+    public List<ClientSensorData> consume(String topic) {
+        if (!subscribed) {
+            consumer.subscribe(Collections.singleton(topic));
+            subscribed = true;
+        }
+
+        ConsumerRecords<Integer, SensorData> messages
+                = consumer.poll(Duration.of(1000, ChronoUnit.MILLIS));
+
+        List<ClientSensorData> result = new ArrayList<>();
+        processRecords(messages, result::add);
         return result;
+    }
+
+    private void processRecords(ConsumerRecords<Integer, SensorData> consumerRecords,
+                                MessageConsumerCallback<ClientSensorData> callback) {
+        consumerRecords.forEach(consumerRecord -> {
+            ClientSensorData clientSensorData = new ClientSensorData();
+            clientSensorData.setBuildingId(consumerRecord.key());
+            clientSensorData.setSensorId(consumerRecord.value().getSensorId());
+            clientSensorData.setTemperature(consumerRecord.value().getTemperature());
+            clientSensorData.setStatus(consumerRecord.value().getStatus().toString());
+            clientSensorData.setLastUpdate(consumerRecord.value().getLastUpdate());
+            clientSensorData.setTopic(consumerRecord.topic());
+            clientSensorData.setPartition(consumerRecord.partition());
+            callback.call(clientSensorData);
+        });
     }
 
 }

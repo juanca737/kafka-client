@@ -8,7 +8,7 @@ package org.jcb.kafka.controller;
 import lombok.Data;
 
 @Data
-public class SensorDataClient {
+public class ClientSensorData {
 
     private int buildingId;
     private int sensorId;

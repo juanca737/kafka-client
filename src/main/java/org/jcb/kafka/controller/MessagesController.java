@@ -45,27 +45,27 @@ public class MessagesController {
     private SensorDataPartitionedConsumerService consumerPartitionedService;
 
     @PostMapping("/{topic}")
-    public ResponseEntity<?> sendMessage(@PathVariable String topic,  @RequestBody SensorDataClient sensorDataClient) {
+    public ResponseEntity<?> sendMessage(@PathVariable String topic,  @RequestBody ClientSensorData sensorData) {
 
         SensorData data =
                 SensorData.newBuilder()
-                        .setSensorId(sensorDataClient.getSensorId())
-                        .setTemperature(sensorDataClient.getTemperature())
-                        .setStatus(sensorDataClient.getStatus())
+                        .setSensorId(sensorData.getSensorId())
+                        .setTemperature(sensorData.getTemperature())
+                        .setStatus(sensorData.getStatus())
                         .setLastUpdate(System.currentTimeMillis())
                         .build();
 
         if (topic.equalsIgnoreCase("topic-1")) {
-            producerService.produce(topic, sensorDataClient.getBuildingId(), data,  producerCallBack);
+            producerService.produce(topic, sensorData.getBuildingId(), data,  producerCallBack);
         } else {
-            partitionedProducerService.produce(topic, sensorDataClient.getBuildingId(), data,  producerCallBack);
+            partitionedProducerService.produce(topic, sensorData.getBuildingId(), data,  producerCallBack);
         }
         return ResponseEntity.ok("Message sent");
     }
 
     @GetMapping("/{topic}")
-    public ResponseEntity<List<SensorDataClient>> getMessages(@PathVariable String topic) {
-        List<SensorDataClient> result;
+    public ResponseEntity<List<ClientSensorData>> getMessages(@PathVariable String topic) {
+        List<ClientSensorData> result;
         if (topic.equalsIgnoreCase("topic-1")) {
             result = getAllMessages(consumerService, topic);
         } else {
@@ -74,11 +74,11 @@ public class MessagesController {
         return ResponseEntity.ok().body(result);
     }
 
-    public List<SensorDataClient> getAllMessages(SensorDataConsumer consumer, String topic) {
-        List<SensorDataClient> result = new ArrayList<>();
+    public List<ClientSensorData> getAllMessages(SensorDataConsumer consumer, String topic) {
+        List<ClientSensorData> result = new ArrayList<>();
 
         int emptyCount = 0;
-        List<SensorDataClient> simpleResult;
+        List<ClientSensorData> simpleResult;
         while (true) {
             simpleResult = consumer.consume(topic);
             // I didn't find a cleaner way to do retrieve messages until the topic is empty...
