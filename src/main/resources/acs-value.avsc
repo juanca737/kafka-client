@@ -1,0 +1,27 @@
+{
+  "type": "record",
+  "name": "SensorData",
+  "namespace": "org.jcb.kafka.schema",
+  "fields": [
+    {
+      "name": "sensorId",
+      "type": "int",
+      "doc": "The sensor identifier, it is unique in a building unit"
+    },
+    {
+      "name": "temperature",
+      "type": "double",
+      "doc": "The temperature value expressed in Celsius"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "doc": "The device's status"
+    },
+    {
+      "name": "lastUpdate",
+      "type": "long",
+      "doc": "The time when the device was updated"
+    }
+  ]
+}
